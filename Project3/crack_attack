@@ -1,0 +1,5 @@
+#! /usr/bin/env bash
+
+./compress.sh $2 $3
+./attack_main $1 $2 $3
+

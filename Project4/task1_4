@@ -1,0 +1,10 @@
+#!/bin/bash
+
+pos=`grep -obUaP "\x50\x4b\x03\x04" meow.jpg | awk -F ":" '{split($0, arr, ":"); print arr[1]}'`
+
+file_size=$(stat -c "%s" ./meow.jpg)
+dd if=./meow.jpg of=./meow.zip bs=1 skip=$((pos-1)) count=$((file_size-pos+1)) >/dev/null 2>&1
+
+unzip ./meow.zip >/dev/null 2>&1
+
+echo `cat ./flag.txt | grep FLAG | sed 's/MEOW//g'`

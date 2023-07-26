@@ -1,0 +1,13 @@
+#!/bin/bash
+
+strings ./string > string.txt
+
+flag='FLAG'
+str=''
+
+while read line; do 
+    str=`echo "$line" | base64 -d 2>/dev/null | tr -d '\0'`
+    if [[ "$str" == "$flag"* ]]; then
+        echo "$str"
+    fi  
+done < string.txt

